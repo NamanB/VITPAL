@@ -5,8 +5,6 @@ import torch_ac
 import tensorboardX
 import sys
 
-sys.path.append("/Users/naman/Documents/GeorgiaTech/CS/7648/project/rl-starter-files")
-
 import utils
 from utils import device
 from model import ACModel
