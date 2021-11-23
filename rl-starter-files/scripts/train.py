@@ -62,6 +62,11 @@ parser.add_argument("--recurrence", type=int, default=1,
 parser.add_argument("--text", action="store_true", default=False,
                     help="add a GRU to the model to handle text input")
 
+parser.add_argument("--expert-model", default=None,
+                    help="name of the expert model")
+parser.add_argument("--beta-cooling", type=float, default=0.9999,
+                    help= "beta cooling for dagger algorithm")
+
 args = parser.parse_args()
 
 args.mem = args.recurrence > 1
@@ -134,6 +139,21 @@ elif args.algo == "ppo":
     algo = torch_ac.PPOAlgo(envs, acmodel, device, args.frames_per_proc, args.discount, args.lr, args.gae_lambda,
                             args.entropy_coef, args.value_loss_coef, args.max_grad_norm, args.recurrence,
                             args.optim_eps, args.clip_eps, args.epochs, args.batch_size, preprocess_obss)
+elif args.algo == "dagger":
+    # Load expert model
+
+    expert_model = ACModel(obs_space, envs[0].action_space, args.mem, args.text)
+    expert_model_dir = utils.get_model_dir(args.expert_model)
+    expert_model.load_state_dict(utils.get_model_state(expert_model_dir))
+
+    acmodel.to(device)
+    txt_logger.info("Expert Model loaded\n")
+    txt_logger.info("{}\n".format(acmodel))
+
+    algo = torch_ac.DaggerAlgo(envs, acmodel, expert_model, args.beta_cooling, device, args.frames_per_proc, args.discount, args.lr, args.gae_lambda,
+                        args.entropy_coef, args.value_loss_coef, args.max_grad_norm, args.recurrence,
+                        args.optim_alpha, args.optim_eps, preprocess_obss)
+
 else:
     raise ValueError("Incorrect algorithm name: {}".format(args.algo))
 
