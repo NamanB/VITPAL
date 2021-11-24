@@ -1,6 +1,7 @@
 # VITPAL - Variable Information Transfer from Privileged Agent to Learners
 
 ## Installation
+*Note use python 3.7 to avoid multiprocessig issue that happens in 3.8
 
 1. Clone this repository.
 2. Install custom `gym-minigrid` by navigating to its folder then
