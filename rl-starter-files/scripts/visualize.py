@@ -56,7 +56,7 @@ def main():
     # Run the agent
 
     if args.gif:
-    from array2gif import write_gif
+        from array2gif import write_gif
     frames = []
 
     # Create a window to view the environment
