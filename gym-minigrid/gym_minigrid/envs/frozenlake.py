@@ -31,7 +31,6 @@ class FrozenLakeEnv(MiniGridEnv):
         # # Place barriers.
         _idx = np.arange(width * height).reshape(width, height).T
 
-        # TODO: change to not hard coded
         self.potential_lava_locs = np.array([16, 23, 30,
                                              17, 24, 31,
                                              18, 25, 32])
@@ -69,7 +68,6 @@ class FrozenLakeEnv(MiniGridEnv):
                 _idx = np.asarray(np.where(np.arange(width * height).reshape(width, height) == _i)).squeeze()
                 self.lava_locations.append((_idx[1], _idx[0]))
                 self._lava_idx.append(_i)
-        p = 0
 
         self.mission = (
             "avoid the hole and get to the green goal square"

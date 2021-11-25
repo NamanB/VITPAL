@@ -23,8 +23,13 @@ pip install -r requirements.txt
 ### Environment Test
 To test frozen lake environment manually, run 
 ```
-./gym-minigrid/manual_control.py --env MiniGrid-FrozenLakeS7-v0
+./gym-minigrid/manual_control.py
 ```
+
+You can set the `--agent_normal`, `--agent_privileged`, and `--lava_render_dist <dist (-1 for all)>`  flags. The render dist flag can be used to make the privileged agent not omnicient but still have privileged information.
+
+### Environments and Wrappers
+The `VitpalTrainWrapper` `VitpalExpertImgObsWrapper` and `VitpalRGBImgObsWrapper` are the wrappers used for each type of agent or training. The train wrapper will return observations containing both the expert and rgb image obs in the `normal` and `privileged` sub fields of obs. The expert image wrapper is created with `lava_render_dist` with (-1) default, allowing privilaged agents to see lava in manhattan distance within their distance range. The normal rgb image observation wrapper does not show lava by default and returns the grid in pixel space.  
 
 ### Train a sample baseline agent
 To train a sample agent, navigate to the `rl-starter-files` then

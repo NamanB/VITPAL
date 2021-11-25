@@ -9,7 +9,7 @@ from gym_minigrid.wrappers import *
 from gym_minigrid.window import Window
 
 def redraw(img):
-    if args.agent_privelaged:
+    if args.agent_privileged:
         grid, vis_mask = Grid.decode(img)
         vis_mask=np.zeros(vis_mask.shape)
 
@@ -124,7 +124,7 @@ parser.add_argument(
     action='store_true'
 )
 parser.add_argument(
-    '--agent_privelaged',
+    '--agent_privileged',
     default=False,
     help="draw the agent sees",
     action='store_true'
@@ -150,7 +150,7 @@ if args.agent_normal:
     env = VitpalRGBImgObsWrapper(env)
     print('loaded wrapper')
 
-if args.agent_privelaged:
+if args.agent_privileged:
     env = VitpalExpertImgObsWrapper(env, lava_render_dist=args.lava_render_dist)
 
 window = Window('gym_minigrid - ' + args.env)

@@ -220,10 +220,10 @@ class RGBImgPartialObsWrapper(gym.core.ObservationWrapper):
 class VitpalTrainWrapper(gym.core.ObservationWrapper):
     """
     Wrapper to return both partially observable RGB image for normal agent and compact 
-    image for privelaged agent as observation.
+    image for privileged agent as observation.
 
     This is only used during training, with the VitpalImgObsWrapper used to train 
-    expert privelaged agents, and VitpalRGBPartialImgObsWrapper for normal agents. 
+    expert privileged agents, and VitpalRGBPartialImgObsWrapper for normal agents. 
     """
 
     def __init__(self, env, tile_size=8, lava_render_dist=-1):
@@ -233,7 +233,7 @@ class VitpalTrainWrapper(gym.core.ObservationWrapper):
 
         obs_shape = env.observation_space.spaces['image'].shape
 
-        self.observation_space.spaces['privelaged'] = obs_shape
+        self.observation_space.spaces['privileged'] = obs_shape
         self.observation_space.spaces['normal'] = spaces.Box(
             low=0,
             high=255,
@@ -252,19 +252,19 @@ class VitpalTrainWrapper(gym.core.ObservationWrapper):
             lava_render_dist=0
         )
 
-        img = env.grid.encode_privelaged(agent_pos=env.agent_pos, lava_render_dist=self.lava_render_dist)
+        img = env.grid.encode_privileged(agent_pos=env.agent_pos, lava_render_dist=self.lava_render_dist)
 
 
         return {
             'normal': rgb_img,
-            'privelaged': img
+            'privileged': img
         }
 
 class VitpalExpertImgObsWrapper(gym.core.ObservationWrapper):
     """
-    Wrapper to return compact image for privelaged agent as observation
+    Wrapper to return compact image for privileged agent as observation
 
-    TODO: currently does not support setting new obs dist/partial privelaged info (maybe look at ViewSizeWrapper)
+    TODO: currently does not support setting new obs dist/partial privileged info (maybe look at ViewSizeWrapper)
     """
 
     def __init__(self, env, lava_render_dist=-1):
@@ -275,7 +275,7 @@ class VitpalExpertImgObsWrapper(gym.core.ObservationWrapper):
     def observation(self, obs):
         env = self.unwrapped
 
-        img = env.grid.encode_privelaged(agent_pos=env.agent_pos, lava_render_dist=self.lava_render_dist)
+        img = env.grid.encode_privileged(agent_pos=env.agent_pos, lava_render_dist=self.lava_render_dist)
 
         return img
 

@@ -562,7 +562,7 @@ class Grid:
 
         return array
 
-    def encode_privelaged(self, vis_mask=None, agent_pos=(0,0), lava_render_dist=-1):
+    def encode_privileged(self, vis_mask=None, agent_pos=(0,0), lava_render_dist=-1):
         """
         Produce a compact numpy encoding of the grid
         """
