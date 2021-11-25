@@ -245,8 +245,9 @@ class VitpalTrainWrapper(gym.core.ObservationWrapper):
     def observation(self, obs):
         env = self.unwrapped
 
-        rgb_img_partial = env.get_obs_render(
-            obs['image'],
+        rgb_img = env.render(
+            mode='rgb_array',
+            highlight=False,
             tile_size=self.tile_size,
             lava_render_dist=0
         )
@@ -255,7 +256,7 @@ class VitpalTrainWrapper(gym.core.ObservationWrapper):
 
 
         return {
-            'normal': rgb_img_partial,
+            'normal': rgb_img,
             'privelaged': img
         }
 
