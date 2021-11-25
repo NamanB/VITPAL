@@ -4,12 +4,33 @@ import time
 import argparse
 import numpy as np
 import gym
-import gym_minigrid
+from gym_minigrid.minigrid import Grid
 from gym_minigrid.wrappers import *
 from gym_minigrid.window import Window
 
 def redraw(img):
-    if not args.agent_view:
+    if args.agent_privelaged:
+        grid, vis_mask = Grid.decode(img)
+        vis_mask=np.zeros(vis_mask.shape)
+
+        xdist = np.abs(np.arange(vis_mask.shape[0]) - env.agent_pos[1])
+        ydist = np.abs(np.arange(vis_mask.shape[1]) - env.agent_pos[0])
+        xdist, ydist = np.meshgrid(xdist, ydist)
+        vis_mask = (xdist + ydist) <= args.lava_render_dist
+        vis_mask[0] = False
+        vis_mask[:, 0] = False
+        vis_mask[-1] = False
+        vis_mask[:, -1] = False
+
+        img = grid.render(args.tile_size,
+            env.agent_pos,
+            env.agent_dir,
+            highlight_mask=vis_mask,
+            lava_render_dist=args.lava_render_dist)
+    elif args.agent_normal:
+        # to see agent view, comment out this line and write pass
+        img = env.render('rgb_array', tile_size=args.tile_size, highlight=False, lava_render_dist=0) 
+    elif not args.agent_view:
         img = env.render('rgb_array', tile_size=args.tile_size)
 
     window.show_img(img)
@@ -76,7 +97,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument(
     "--env",
     help="gym environment to load",
-    default='MiniGrid-MultiRoom-N6-v0'
+    default='MiniGrid-FrozenLakeS7-v0'
 )
 parser.add_argument(
     "--seed",
@@ -96,6 +117,26 @@ parser.add_argument(
     help="draw the agent sees (partially observable view)",
     action='store_true'
 )
+parser.add_argument(
+    '--agent_normal',
+    default=False,
+    help="draw the agent sees (partially observable view)",
+    action='store_true'
+)
+parser.add_argument(
+    '--agent_privelaged',
+    default=False,
+    help="draw the agent sees",
+    action='store_true'
+)
+parser.add_argument(
+    "--lava_render_dist",
+    type=int,
+    help="manhattan distance within which to render lava (-1 for all)",
+    default=-1
+)
+
+
 
 args = parser.parse_args()
 
@@ -104,6 +145,13 @@ env = gym.make(args.env)
 if args.agent_view:
     env = RGBImgPartialObsWrapper(env)
     env = ImgObsWrapper(env)
+
+if args.agent_normal:
+    env = VitpalRGBImgObsWrapper(env)
+    print('loaded wrapper')
+
+if args.agent_privelaged:
+    env = VitpalExpertImgObsWrapper(env, lava_render_dist=args.lava_render_dist)
 
 window = Window('gym_minigrid - ' + args.env)
 window.reg_key_handler(key_handler)

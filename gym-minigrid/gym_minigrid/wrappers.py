@@ -5,7 +5,7 @@ from functools import reduce
 import numpy as np
 import gym
 from gym import error, spaces, utils
-from .minigrid import OBJECT_TO_IDX, COLOR_TO_IDX, STATE_TO_IDX
+from .minigrid import OBJECT_TO_IDX, COLOR_TO_IDX, STATE_TO_IDX, Lava
 
 class ReseedWrapper(gym.core.Wrapper):
     """
@@ -216,6 +216,97 @@ class RGBImgPartialObsWrapper(gym.core.ObservationWrapper):
             'mission': obs['mission'],
             'image': rgb_img_partial
         }
+
+class VitpalTrainWrapper(gym.core.ObservationWrapper):
+    """
+    Wrapper to return both partially observable RGB image for normal agent and compact 
+    image for privelaged agent as observation.
+
+    This is only used during training, with the VitpalImgObsWrapper used to train 
+    expert privelaged agents, and VitpalRGBPartialImgObsWrapper for normal agents. 
+    """
+
+    def __init__(self, env, tile_size=8, lava_render_dist=-1):
+        super().__init__(env)
+
+        self.tile_size = tile_size
+
+        obs_shape = env.observation_space.spaces['image'].shape
+
+        self.observation_space.spaces['privelaged'] = obs_shape
+        self.observation_space.spaces['normal'] = spaces.Box(
+            low=0,
+            high=255,
+            shape=(obs_shape[0] * tile_size, obs_shape[1] * tile_size, 3),
+            dtype='uint8'
+        )
+        self.lava_render_dist = lava_render_dist
+
+    def observation(self, obs):
+        env = self.unwrapped
+
+        rgb_img_partial = env.get_obs_render(
+            obs['image'],
+            tile_size=self.tile_size,
+            lava_render_dist=0
+        )
+
+        img = env.grid.encode_privelaged(agent_pos=env.agent_pos, lava_render_dist=self.lava_render_dist)
+
+
+        return {
+            'normal': rgb_img_partial,
+            'privelaged': img
+        }
+
+class VitpalExpertImgObsWrapper(gym.core.ObservationWrapper):
+    """
+    Wrapper to return compact image for privelaged agent as observation
+
+    TODO: currently does not support setting new obs dist/partial privelaged info (maybe look at ViewSizeWrapper)
+    """
+
+    def __init__(self, env, lava_render_dist=-1):
+        super().__init__(env)
+        self.observation_space = env.observation_space.spaces['image']
+        self.lava_render_dist = lava_render_dist
+
+    def observation(self, obs):
+        env = self.unwrapped
+
+        img = env.grid.encode_privelaged(agent_pos=env.agent_pos, lava_render_dist=self.lava_render_dist)
+
+        return img
+
+
+class VitpalRGBImgObsWrapper(gym.core.ObservationWrapper):
+    """
+    Wrapper to return partially observable RGB image for normal agent
+    """
+
+    def __init__(self, env, tile_size=8):
+        super().__init__(env)
+
+        self.tile_size = tile_size
+
+        self.observation_space = spaces.Box(
+            low=0,
+            high=255,
+            shape=(self.env.width * tile_size, self.env.height * tile_size, 3),
+            dtype='uint8'
+        )
+
+    def observation(self, obs):
+        env = self.unwrapped
+
+        rgb_img = env.render(
+            mode='rgb_array',
+            highlight=False,
+            tile_size=self.tile_size,
+            lava_render_dist=0
+        )
+
+        return rgb_img
 
 class FullyObsWrapper(gym.core.ObservationWrapper):
     """

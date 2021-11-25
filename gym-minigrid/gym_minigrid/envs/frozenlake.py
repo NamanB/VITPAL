@@ -7,13 +7,13 @@ class FrozenLakeEnv(MiniGridEnv):
     This environment is similar to LavaCrossing but simpler in structure.
     """
 
-    def __init__(self, size, obstacle_type=Lava, seed=None, p=0.2, multiple_holes=True, mode='partial'):
+    def __init__(self, size, obstacle_type=Lava, seed=None, p=0.2, multiple_holes=True):
         self.obstacle_type = obstacle_type
         self.p = p
         self.multiple_holes = multiple_holes
         super().__init__(
             grid_size=size,
-            max_steps=4*size*size,
+            max_steps=2*size*size,
             # Set this to True for maximum speed
             see_through_walls=False,
             seed=seed
@@ -78,6 +78,7 @@ class FrozenLakeEnv(MiniGridEnv):
         )
 
     def step(self, action):
+
         self.step_count += 1
 
         reward = -2 # TODO Fix rewards
@@ -111,7 +112,6 @@ class FrozenLakeEnv(MiniGridEnv):
                 done = True
                 reward += -100
         else:
-            # print('unknown action')
             assert False, "unknown action"
 
         if self.step_count >= self.max_steps:
@@ -121,27 +121,10 @@ class FrozenLakeEnv(MiniGridEnv):
 
         return obs, reward, done, {}
 
-# class LavaGapS5Env(LavaGapEnv):
-#     def __init__(self):
-#         super().__init__(size=5)
-
-# class LavaGapS6Env(LavaGapEnv):
-#     def __init__(self):
-#         super().__init__(size=6)
-
 class FrozenLakeS7Env(FrozenLakeEnv):
     def __init__(self):
         super().__init__(size=7, )
 
-# register(
-#     id='MiniGrid-LavaGapS5-v0',
-#     entry_point='gym_minigrid.envs:LavaGapS5Env'
-# )
-
-# register(
-#     id='MiniGrid-LavaGapS6-v0',
-#     entry_point='gym_minigrid.envs:LavaGapS6Env'
-# )
 
 register(
     id='MiniGrid-FrozenLakeS7-v0',

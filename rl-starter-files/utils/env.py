@@ -1,12 +1,15 @@
 import gym
-import gym_minigrid
 
-# from gym_minigrid.wrappers import *
+from gym_minigrid.wrappers import *
 
 
 def make_env(env_key, seed=None):
+    # TODO: add a parameter to specify which agent/algorithm, then make corresponding wrappers automatically (normal vs expert)
     env = gym.make(env_key)
-    # if env_key == 'MiniGrid-FrozenLakeS7-v0':
-        # env = gym_minigrid.wrappers.RGBImgObsWrapper(env)
+    if env_key == 'MiniGrid-FrozenLakeS7-v0':
+        # always use ImgObsWrapper to ignore mission text input for obs
+        # env = ImgObsWrapper(RGBImgPartialObsWrapper(env))
+        env = VitpalRGBImgObsWrapper(env)
+        # env = VitpalExpertImgObsWrapper(env)
     env.seed(seed)
     return env

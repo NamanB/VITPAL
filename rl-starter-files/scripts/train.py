@@ -123,6 +123,8 @@ def main():
 
     # Load model
 
+    # TODO: when using the VitpalTrainWrapper, make sure acmodel obs_space set to VitpalRGBPartialImgObsWrapper (obs space for model should not have privelaged info)
+    # a2d can use both, but model should only require the VitpalRGBPartialImgObsWrapper and can be run on that after training for visualization
     acmodel = ACModel(obs_space, envs[0].action_space, args.mem, args.text)
     if "model_state" in status:
         acmodel.load_state_dict(status["model_state"])

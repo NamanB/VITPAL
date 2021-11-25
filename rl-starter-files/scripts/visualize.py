@@ -66,6 +66,7 @@ def main():
         obs = env.reset()
 
         while True:
+            # TODO: to get agent view for each type, look at manual_control in gym
             env.render('human')
             if args.gif:
                 frames.append(numpy.moveaxis(env.render("rgb_array"), 2, 0))

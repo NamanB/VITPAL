@@ -2,6 +2,7 @@ import math
 import hashlib
 import gym
 from enum import IntEnum
+from matplotlib.pyplot import show
 import numpy as np
 from gym import error, spaces, utils
 from gym.utils import seeding
@@ -441,7 +442,8 @@ class Grid:
         agent_dir=None,
         highlight=False,
         tile_size=TILE_PIXELS,
-        subdivs=3
+        subdivs=3,
+        show_lava=True
     ):
         """
         Render a tile and cache the result
@@ -460,7 +462,7 @@ class Grid:
         fill_coords(img, point_in_rect(0, 0.031, 0, 1), (100, 100, 100))
         fill_coords(img, point_in_rect(0, 1, 0, 0.031), (100, 100, 100))
 
-        if obj != None:# and not isinstance(obj, Lava):
+        if obj != None and (show_lava or not isinstance(obj, Lava)):
             obj.render(img)
 
         # Overlay the agent on top
@@ -492,12 +494,15 @@ class Grid:
         tile_size,
         agent_pos=None,
         agent_dir=None,
-        highlight_mask=None
+        highlight_mask=None,
+        lava_render_dist=-1,
     ):
         """
         Render this grid at a given scale
         :param r: target renderer object
         :param tile_size: tile size in pixels
+
+        hide lava only used by vitpal wrapper
         """
 
         if highlight_mask is None:
@@ -515,11 +520,13 @@ class Grid:
                 cell = self.get(i, j)
 
                 agent_here = np.array_equal(agent_pos, (i, j))
+                show_lava = lava_render_dist < 0 or abs(agent_pos[0] - i) + abs(agent_pos[1] - j) <= lava_render_dist
                 tile_img = Grid.render_tile(
                     cell,
                     agent_dir=agent_dir if agent_here else None,
                     highlight=highlight_mask[i, j],
-                    tile_size=tile_size
+                    tile_size=tile_size,
+                    show_lava=show_lava
                 )
 
                 ymin = j * tile_size
@@ -544,6 +551,34 @@ class Grid:
             for j in range(self.height):
                 if vis_mask[i, j]:
                     v = self.get(i, j)
+
+                    if v is None:
+                        array[i, j, 0] = OBJECT_TO_IDX['empty']
+                        array[i, j, 1] = 0
+                        array[i, j, 2] = 0
+
+                    else:
+                        array[i, j, :] = v.encode()
+
+        return array
+
+    def encode_privelaged(self, vis_mask=None, agent_pos=(0,0), lava_render_dist=-1):
+        """
+        Produce a compact numpy encoding of the grid
+        """
+
+        if vis_mask is None:
+            vis_mask = np.ones((self.width, self.height), dtype=bool)
+
+        array = np.zeros((self.width, self.height, 3), dtype='uint8')
+
+        for i in range(self.width):
+            for j in range(self.height):
+                if vis_mask[i, j]:
+                    v = self.get(i, j)
+                    show_lava = lava_render_dist < 0 or abs(agent_pos[0] - i) + abs(agent_pos[1] - j) <= lava_render_dist
+                    if not show_lava and isinstance(v, Lava):
+                        v = None
 
                     if v is None:
                         array[i, j, 0] = OBJECT_TO_IDX['empty']
@@ -1218,9 +1253,11 @@ class MiniGridEnv(gym.Env):
 
         return obs
 
-    def get_obs_render(self, obs, tile_size=TILE_PIXELS//2):
+    def get_obs_render(self, obs, tile_size=TILE_PIXELS//2, lava_render_dist=-1):
         """
         Render an agent observation for visualization
+
+        lava_render_dist only used by vitpal wrapper
         """
 
         grid, vis_mask = Grid.decode(obs)
@@ -1230,12 +1267,13 @@ class MiniGridEnv(gym.Env):
             tile_size,
             agent_pos=(self.agent_view_size // 2, self.agent_view_size - 1),
             agent_dir=3,
-            highlight_mask=vis_mask
+            highlight_mask=vis_mask,
+            lava_render_dist=lava_render_dist
         )
 
         return img
 
-    def render(self, mode='human', close=False, highlight=True, tile_size=TILE_PIXELS):
+    def render(self, mode='human', close=False, highlight=True, tile_size=TILE_PIXELS, lava_render_dist=-1):
         """
         Render the whole-grid human view
         """
@@ -1285,7 +1323,8 @@ class MiniGridEnv(gym.Env):
             tile_size,
             self.agent_pos,
             self.agent_dir,
-            highlight_mask=highlight_mask if highlight else None
+            highlight_mask=highlight_mask if highlight else None,
+            lava_render_dist=lava_render_dist
         )
 
         if mode == 'human':

@@ -19,6 +19,26 @@ def get_obss_preprocessor(obs_space):
                 "image": preprocess_images(obss, device=device)
             })
 
+
+    # Check if it is a Vitpal training MiniGrid observation space
+    elif isinstance(obs_space, gym.spaces.Dict) and set(obs_space.spaces.keys()) == set(["normal", "privelaged"]):
+        obs_space = {"normal": obs_space.spaces["normal"].shape, "privelaged":obs_space.spaces["privelaged"].shape}
+
+        def preprocess_obss(obss, device=None):
+            return torch_ac.DictList({
+                "normal": preprocess_images([obs["normal"] for obs in obss], device=device),
+                "privelaged": preprocess_images([obs["privelaged"] for obs in obss], device=device),
+            })
+
+    # Check if it is a Vitpal MiniGrid observation space
+    elif isinstance(obs_space, gym.spaces.Dict) and set(obs_space.spaces.keys()) == set(["normal"]):
+        obs_space = {"normal": obs_space.spaces["normal"].shape}
+
+        def preprocess_obss(obss, device=None):
+            return torch_ac.DictList({
+                "normal": preprocess_images([obs["normal"] for obs in obss], device=device),
+            })
+
     # Check if it is a MiniGrid observation space
     elif isinstance(obs_space, gym.spaces.Dict) and list(obs_space.spaces.keys()) == ["image"]:
         obs_space = {"image": obs_space.spaces["image"].shape, "text": 100}
