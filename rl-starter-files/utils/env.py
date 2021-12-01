@@ -9,7 +9,7 @@ def make_env(env_key, seed=None):
     if env_key == 'MiniGrid-FrozenLakeS7-v0':
         # always use ImgObsWrapper to ignore mission text input for obs
         # env = ImgObsWrapper(RGBImgPartialObsWrapper(env))
-        env = VitpalRGBImgObsWrapper(env)
-        # env = VitpalExpertImgObsWrapper(env)
+        # env = VitpalRGBImgObsWrapper(env)
+        env = VitpalExpertImgObsWrapper(env)
     env.seed(seed)
     return env

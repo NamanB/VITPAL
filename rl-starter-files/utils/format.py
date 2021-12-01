@@ -9,7 +9,7 @@ import gym
 import utils
 
 
-def get_obss_preprocessor(obs_space):
+def get_obss_preprocessor(obs_space, use_text=False):
     # Check if obs_space is an image space
     if isinstance(obs_space, gym.spaces.Box):
         obs_space = {"image": obs_space.shape}
@@ -21,35 +21,36 @@ def get_obss_preprocessor(obs_space):
 
 
     # Check if it is a Vitpal training MiniGrid observation space
-    elif isinstance(obs_space, gym.spaces.Dict) and set(obs_space.spaces.keys()) == set(["normal", "privelaged"]):
-        obs_space = {"normal": obs_space.spaces["normal"].shape, "privelaged":obs_space.spaces["privelaged"].shape}
+    elif isinstance(obs_space, gym.spaces.Dict) and set(obs_space.spaces.keys()) == set(["image", "privelaged"]):
+        obs_space = {"image": obs_space.spaces["image"].shape, "privelaged":obs_space.spaces["privelaged"].shape}
 
         def preprocess_obss(obss, device=None):
             return torch_ac.DictList({
-                "normal": preprocess_images([obs["normal"] for obs in obss], device=device),
+                "image": preprocess_images([obs["image"] for obs in obss], device=device),
                 "privelaged": preprocess_images([obs["privelaged"] for obs in obss], device=device),
-            })
-
-    # Check if it is a Vitpal MiniGrid observation space
-    elif isinstance(obs_space, gym.spaces.Dict) and set(obs_space.spaces.keys()) == set(["normal"]):
-        obs_space = {"normal": obs_space.spaces["normal"].shape}
-
-        def preprocess_obss(obss, device=None):
-            return torch_ac.DictList({
-                "normal": preprocess_images([obs["normal"] for obs in obss], device=device),
             })
 
     # Check if it is a MiniGrid observation space
     elif isinstance(obs_space, gym.spaces.Dict) and list(obs_space.spaces.keys()) == ["image"]:
-        obs_space = {"image": obs_space.spaces["image"].shape, "text": 100}
 
-        vocab = Vocabulary(obs_space["text"])
-        def preprocess_obss(obss, device=None):
-            return torch_ac.DictList({
-                "image": preprocess_images([obs["image"] for obs in obss], device=device),
-                "text": preprocess_texts([obs["mission"] for obs in obss], vocab, device=device)
-            })
-        preprocess_obss.vocab = vocab
+        if use_text:
+            obs_space = {"image": obs_space.spaces["image"].shape, "text": 100}
+
+            vocab = Vocabulary(obs_space["text"])
+            def preprocess_obss(obss, device=None):
+                return torch_ac.DictList({
+                    "image": preprocess_images([obs["image"] for obs in obss], device=device),
+                    "text": preprocess_texts([obs["mission"] for obs in obss], vocab, device=device)
+                })
+            preprocess_obss.vocab = vocab
+        else:
+            obs_space = {"image": obs_space.spaces["image"].shape}
+
+            def preprocess_obss(obss, device=None):
+                return torch_ac.DictList({
+                    "image": preprocess_images([obs["image"] for obs in obss], device=device)
+                })
+        
 
     else:
         raise ValueError("Unknown observation space: " + str(obs_space))

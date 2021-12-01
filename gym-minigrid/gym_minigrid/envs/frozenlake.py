@@ -13,7 +13,7 @@ class FrozenLakeEnv(MiniGridEnv):
         self.multiple_holes = multiple_holes
         super().__init__(
             grid_size=size,
-            max_steps=2*size*size,
+            max_steps=4*size*size,
             # Set this to True for maximum speed
             see_through_walls=False,
             seed=seed

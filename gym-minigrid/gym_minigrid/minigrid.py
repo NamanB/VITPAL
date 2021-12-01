@@ -442,8 +442,7 @@ class Grid:
         agent_dir=None,
         highlight=False,
         tile_size=TILE_PIXELS,
-        subdivs=3,
-        show_lava=True
+        subdivs=3
     ):
         """
         Render a tile and cache the result
@@ -462,7 +461,7 @@ class Grid:
         fill_coords(img, point_in_rect(0, 0.031, 0, 1), (100, 100, 100))
         fill_coords(img, point_in_rect(0, 1, 0, 0.031), (100, 100, 100))
 
-        if obj != None and (show_lava or not isinstance(obj, Lava)):
+        if obj != None:
             obj.render(img)
 
         # Overlay the agent on top
@@ -521,12 +520,13 @@ class Grid:
 
                 agent_here = np.array_equal(agent_pos, (i, j))
                 show_lava = lava_render_dist < 0 or abs(agent_pos[0] - i) + abs(agent_pos[1] - j) <= lava_render_dist
+                if not (show_lava and highlight_mask[i, j]) and isinstance(cell, Lava):
+                    cell = None
                 tile_img = Grid.render_tile(
                     cell,
                     agent_dir=agent_dir if agent_here else None,
                     highlight=highlight_mask[i, j],
                     tile_size=tile_size,
-                    show_lava=show_lava
                 )
 
                 ymin = j * tile_size

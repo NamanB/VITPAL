@@ -5,7 +5,7 @@ from functools import reduce
 import numpy as np
 import gym
 from gym import error, spaces, utils
-from .minigrid import OBJECT_TO_IDX, COLOR_TO_IDX, STATE_TO_IDX, Lava
+from .minigrid import OBJECT_TO_IDX, COLOR_TO_IDX, STATE_TO_IDX, Grid
 
 class ReseedWrapper(gym.core.Wrapper):
     """
@@ -226,7 +226,7 @@ class VitpalTrainWrapper(gym.core.ObservationWrapper):
     expert privileged agents, and VitpalRGBPartialImgObsWrapper for normal agents. 
     """
 
-    def __init__(self, env, tile_size=8, lava_render_dist=-1):
+    def __init__(self, env, tile_size=8, lava_render_dist=-1, normal_lava_render_dist=0):
         super().__init__(env)
 
         self.tile_size = tile_size
@@ -234,29 +234,30 @@ class VitpalTrainWrapper(gym.core.ObservationWrapper):
         obs_shape = env.observation_space.spaces['image'].shape
 
         self.observation_space.spaces['privileged'] = obs_shape
-        self.observation_space.spaces['normal'] = spaces.Box(
+        self.observation_space.spaces['image'] = spaces.Box(
             low=0,
             high=255,
             shape=(obs_shape[0] * tile_size, obs_shape[1] * tile_size, 3),
             dtype='uint8'
         )
         self.lava_render_dist = lava_render_dist
+        self.normal_lava_render_dist = normal_lava_render_dist
 
     def observation(self, obs):
         env = self.unwrapped
 
-        rgb_img = env.render(
-            mode='rgb_array',
-            highlight=False,
+        rgb_img_partial = env.get_obs_render(
+            obs['image'],
             tile_size=self.tile_size,
-            lava_render_dist=0
+            lava_render_dist=self.lava_render_dist
         )
 
-        img = env.grid.encode_privileged(agent_pos=env.agent_pos, lava_render_dist=self.lava_render_dist)
+        grid, vis_mask = env.gen_obs_grid()
 
+        img = grid.encode_privileged(vis_mask=vis_mask, agent_pos=env.agent_pos, lava_render_dist=self.lava_render_dist)
 
         return {
-            'normal': rgb_img,
+            'image': rgb_img_partial,
             'privileged': img
         }
 
@@ -275,17 +276,21 @@ class VitpalExpertImgObsWrapper(gym.core.ObservationWrapper):
     def observation(self, obs):
         env = self.unwrapped
 
-        img = env.grid.encode_privileged(agent_pos=env.agent_pos, lava_render_dist=self.lava_render_dist)
+        grid, vis_mask = env.gen_obs_grid()
+
+        img = grid.encode_privileged(vis_mask=vis_mask, agent_pos=env.agent_pos, lava_render_dist=self.lava_render_dist)
 
         return img
 
 
 class VitpalRGBImgObsWrapper(gym.core.ObservationWrapper):
     """
-    Wrapper to return partially observable RGB image for normal agent
+    Wrapper to return partially observable RGB image for agents
+
+    Defaults to normal agent (lava render distance 0)
     """
 
-    def __init__(self, env, tile_size=8):
+    def __init__(self, env, tile_size=8, lava_render_dist=0):
         super().__init__(env)
 
         self.tile_size = tile_size
@@ -296,18 +301,30 @@ class VitpalRGBImgObsWrapper(gym.core.ObservationWrapper):
             shape=(self.env.width * tile_size, self.env.height * tile_size, 3),
             dtype='uint8'
         )
+        self.lava_render_dist = lava_render_dist
 
     def observation(self, obs):
         env = self.unwrapped
 
-        rgb_img = env.render(
-            mode='rgb_array',
-            highlight=False,
+        rgb_img_partial = env.get_obs_render(
+            obs['image'],
             tile_size=self.tile_size,
-            lava_render_dist=0
+            lava_render_dist=self.lava_render_dist
         )
 
-        return rgb_img
+        return rgb_img_partial
+        # return {
+        #     'image': rgb_img_partial
+        # }
+
+        # rgb_img = env.render(
+        #     mode='rgb_array',
+        #     highlight=False,
+        #     tile_size=self.tile_size,
+        #     lava_render_dist=0
+        # )
+
+        # return rgb_img
 
 class FullyObsWrapper(gym.core.ObservationWrapper):
     """

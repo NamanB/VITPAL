@@ -10,23 +10,28 @@ from gym_minigrid.window import Window
 
 def redraw(img):
     if args.agent_privileged:
-        grid, vis_mask = Grid.decode(img)
-        vis_mask=np.zeros(vis_mask.shape)
+        # grid, vis_mask = Grid.decode(img)
+        # vis_mask=np.zeros(vis_mask.shape)
 
-        xdist = np.abs(np.arange(vis_mask.shape[0]) - env.agent_pos[1])
-        ydist = np.abs(np.arange(vis_mask.shape[1]) - env.agent_pos[0])
-        xdist, ydist = np.meshgrid(xdist, ydist)
-        vis_mask = (xdist + ydist) <= args.lava_render_dist
-        vis_mask[0] = False
-        vis_mask[:, 0] = False
-        vis_mask[-1] = False
-        vis_mask[:, -1] = False
+        # xdist = np.abs(np.arange(vis_mask.shape[0]) - env.agent_pos[1])
+        # ydist = np.abs(np.arange(vis_mask.shape[1]) - env.agent_pos[0])
+        # xdist, ydist = np.meshgrid(xdist, ydist)
+        # vis_mask = (xdist + ydist) <= args.lava_render_dist
+        # vis_mask[0] = False
+        # vis_mask[:, 0] = False
+        # vis_mask[-1] = False
+        # vis_mask[:, -1] = False
 
-        img = grid.render(args.tile_size,
-            env.agent_pos,
-            env.agent_dir,
-            highlight_mask=vis_mask,
-            lava_render_dist=args.lava_render_dist)
+        # for i in range(env.agent_dir + 1):
+        #     grid = grid.rotate_left()
+
+        # img = grid.render(args.tile_size,
+        #     env.agent_pos,
+        #     env.agent_dir,
+        #     highlight_mask=vis_mask,
+        #     lava_render_dist=args.lava_render_dist)
+        print(args.lava_render_dist)
+        img = env.render('rgb_array', tile_size=args.tile_size, lava_render_dist=args.lava_render_dist)
     elif args.agent_normal:
         # to see agent view, comment out this line and write pass
         img = env.render('rgb_array', tile_size=args.tile_size, highlight=False, lava_render_dist=0) 
@@ -143,7 +148,8 @@ args = parser.parse_args()
 env = gym.make(args.env)
 
 if args.agent_view:
-    env = RGBImgPartialObsWrapper(env)
+    # env = RGBImgPartialObsWrapper(env)
+    env = RGBImgObsWrapper(env)
     env = ImgObsWrapper(env)
 
 if args.agent_normal:
