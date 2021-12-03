@@ -233,7 +233,7 @@ class VitpalTrainWrapper(gym.core.ObservationWrapper):
 
         obs_shape = env.observation_space.spaces['image'].shape
 
-        self.observation_space.spaces['privileged'] = obs_shape
+        self.observation_space.spaces['privileged'] = env.observation_space.spaces['image']
         self.observation_space.spaces['image'] = spaces.Box(
             low=0,
             high=255,
@@ -246,8 +246,9 @@ class VitpalTrainWrapper(gym.core.ObservationWrapper):
     def observation(self, obs):
         env = self.unwrapped
 
-        rgb_img_partial = env.get_obs_render(
-            obs['image'],
+        rgb_img = env.render(
+            mode='rgb_array',
+            highlight=False,
             tile_size=self.tile_size,
             lava_render_dist=self.lava_render_dist
         )
@@ -257,7 +258,7 @@ class VitpalTrainWrapper(gym.core.ObservationWrapper):
         img = grid.encode_privileged(vis_mask=vis_mask, agent_pos=env.agent_pos, lava_render_dist=self.lava_render_dist)
 
         return {
-            'image': rgb_img_partial,
+            'image': rgb_img,
             'privileged': img
         }
 
@@ -306,8 +307,9 @@ class VitpalRGBImgObsWrapper(gym.core.ObservationWrapper):
     def observation(self, obs):
         env = self.unwrapped
 
-        rgb_img_partial = env.get_obs_render(
-            obs['image'],
+        rgb_img = env.render(
+            mode='rgb_array',
+            highlight=False,
             tile_size=self.tile_size,
             lava_render_dist=self.lava_render_dist
         )

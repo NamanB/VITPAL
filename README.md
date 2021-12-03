@@ -39,6 +39,13 @@ python -m scripts.train --algo a2c --env MiniGrid-FrozenLakeS7-v0 --model Frozen
 
 Note that `--model <model name>` is the name of the model. You can change the `--algo <algo name>` flag for different algorithms, and the number of processes can be changed with `--procs <num_procs defaults 16>`
 
+### Train a dagger agent
+```
+python3 -m scripts.train --algo dagger --env MiniGrid-FrozenLakeS7-v0 --model FrozenLake --expert-model expert --save-interval 10 --frames 800000 --procs 1
+```
+
+Note that `--model <model name>` is the name is the model to be trained and the expert model is the model that is trained using reinforcement learning. 
+
 ### Visualize an agent
 To visualize an agent, from the `rl-starter-files` folder, run
 ```

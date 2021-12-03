@@ -65,7 +65,7 @@ def main():
 
     parser.add_argument("--expert-model", default=None,
                         help="name of the expert model")
-    parser.add_argument("--beta-cooling", type=float, default=0.9999,
+    parser.add_argument("--beta-cooling", type=float, default=0.999999,
                         help= "beta cooling for dagger algorithm")
 
     args = parser.parse_args()
@@ -145,7 +145,11 @@ def main():
     elif args.algo == "dagger":
         # Load expert model
 
-        expert_model = ACModel(obs_space, envs[0].action_space, args.mem, args.text)
+        import copy
+        priv_obs_space = copy.deepcopy(obs_space)
+        priv_obs_space["image"]= priv_obs_space["privileged"]
+
+        expert_model = ACModel(priv_obs_space, envs[0].action_space, args.mem, args.text)
         expert_model_dir = utils.get_model_dir(args.expert_model)
         expert_model.load_state_dict(utils.get_model_state(expert_model_dir))
 
