@@ -202,7 +202,7 @@ def main():
 
             txt_logger.info(
                 "U {} | F {:06} | FPS {:04.0f} | D {} | rR:μσmM {:.2f} {:.2f} {:.2f} {:.2f} | F:μσmM {:.1f} {:.1f} {} {} | H {:.3f} | V {:.3f} | pL {:.3f} | vL {:.3f} | ∇ {:.3f}"
-                .format(*data))
+                .format(*data).encode('utf8'))
 
             header += ["return_" + key for key in return_per_episode.keys()]
             data += return_per_episode.values()
