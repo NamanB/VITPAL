@@ -314,7 +314,7 @@ class VitpalRGBImgObsWrapper(gym.core.ObservationWrapper):
             lava_render_dist=self.lava_render_dist
         )
 
-        return rgb_img_partial
+        return rgb_img
         # return {
         #     'image': rgb_img_partial
         # }

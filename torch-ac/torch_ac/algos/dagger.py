@@ -48,7 +48,7 @@ class DaggerAlgo(BaseAlgo):
                 e = random.uniform(0, 1)
 
                 # Expert query at random
-                if e < 1:
+                if e < self.beta:
                     preprocessed_obs = self.preprocess_obss(self.expert_obs, device=self.device)
                     if self.expert_model.recurrent:
                         dist, _, memory = self.expert_model(preprocessed_obs, self.memory * self.mask.unsqueeze(1))
