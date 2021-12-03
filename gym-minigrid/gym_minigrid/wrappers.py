@@ -233,7 +233,7 @@ class VitpalTrainWrapper(gym.core.ObservationWrapper):
 
         obs_shape = env.observation_space.spaces['image'].shape
 
-        self.observation_space.spaces['privileged'] = obs_shape
+        self.observation_space.spaces['privileged'] = env.observation_space.spaces['image']
         self.observation_space.spaces['image'] = spaces.Box(
             low=0,
             high=255,

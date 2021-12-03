@@ -10,13 +10,23 @@ from torch_ac.utils import DictList, ParallelEnv
 class DaggerAlgo(BaseAlgo):
     """The Dagger algorithm."""
 
-    def __init__(self, envs, acmodel, expert_model, beta_cooling=0.9999, device=None, num_frames_per_proc=None, discount=0.99, lr=0.01, gae_lambda=0.95,
+    def __init__(self, envs, acmodel, expert_model, beta_cooling=0.999999, device=None, num_frames_per_proc=None, discount=0.99, lr=0.01, gae_lambda=0.95,
                  entropy_coef=0.01, value_loss_coef=0.5, max_grad_norm=0.5, recurrence=4,
                  rmsprop_alpha=0.99, rmsprop_eps=1e-8, preprocess_obss=None, reshape_reward=None):
         num_frames_per_proc = num_frames_per_proc or 8
 
         super().__init__(envs, acmodel, device, num_frames_per_proc, discount, lr, gae_lambda, entropy_coef,
                          value_loss_coef, max_grad_norm, recurrence, preprocess_obss, reshape_reward)
+
+        import copy 
+        expert_obs = list()
+        for j, ob in enumerate(self.obs):
+            expert_ob= copy.deepcopy(ob)
+            expert_ob["image"]=expert_ob["privileged"]
+
+            expert_obs.append(expert_ob)
+
+        self.expert_obs = expert_obs
 
         self.expert_model = expert_model
         self.beta = 1
@@ -32,19 +42,20 @@ class DaggerAlgo(BaseAlgo):
         for i in range(self.num_frames_per_proc):
             # Do one agent-environment interaction
 
-            preprocessed_obs = self.preprocess_obss(self.obs, device=self.device)
             with torch.no_grad():
 
                 import random
                 e = random.uniform(0, 1)
 
                 # Expert query at random
-                if e < self.beta:
+                if e < 1:
+                    preprocessed_obs = self.preprocess_obss(self.expert_obs, device=self.device)
                     if self.expert_model.recurrent:
                         dist, _, memory = self.expert_model(preprocessed_obs, self.memory * self.mask.unsqueeze(1))
                     else:
                         dist, _ = self.expert_model(preprocessed_obs)
                 else:
+                    preprocessed_obs = self.preprocess_obss(self.obs, device=self.device)
                     if self.expert_model.recurrent:
                         dist, _, memory = self.acmodel(preprocessed_obs, self.memory * self.mask.unsqueeze(1))
                     else:
@@ -55,10 +66,23 @@ class DaggerAlgo(BaseAlgo):
 
             obs, reward, done, _ = self.env.step(action.cpu().numpy())
 
+            self.obss[i] = self.obs
+
+            import copy 
+            expert_obs = list()
+            for j, ob in enumerate(obs):
+                expert_ob= copy.deepcopy(ob)
+                expert_ob["image"]=expert_ob["privileged"]
+
+                expert_obs.append(expert_ob)
+
+            self.expert_obs = expert_obs
+            self.obs = obs
+
             # Update experiences values
 
-            self.obss[i] = self.obs
-            self.obs = obs
+            # self.obss[i] = self.obs
+            # self.obs = obs
             if self.expert_model.recurrent:
                 self.memories[i] = self.memory
                 self.memory = memory
