@@ -157,6 +157,24 @@ def main():
         txt_logger.info("Expert Model loaded\n")
         txt_logger.info("{}\n".format(acmodel))
 
+        algo = torch_ac.A2DAlgo(envs, acmodel, expert_model, args.beta_cooling, device, args.frames_per_proc, args.discount, args.lr, args.gae_lambda,
+                            args.entropy_coef, args.value_loss_coef, args.max_grad_norm, args.recurrence,
+                            args.optim_alpha, args.optim_eps, preprocess_obss)
+    elif args.algo == "a2d":
+        # Load expert model
+
+        import copy
+        priv_obs_space = copy.deepcopy(obs_space)
+        priv_obs_space["image"]= priv_obs_space["privileged"]
+
+        expert_model = ACModel(priv_obs_space, envs[0].action_space, args.mem, args.text)
+        expert_model_dir = utils.get_model_dir(args.expert_model)
+        expert_model.load_state_dict(utils.get_model_state(expert_model_dir))
+
+        acmodel.to(device)
+        txt_logger.info("Expert Model loaded\n")
+        txt_logger.info("{}\n".format(acmodel))
+
         algo = torch_ac.DaggerAlgo(envs, acmodel, expert_model, args.beta_cooling, device, args.frames_per_proc, args.discount, args.lr, args.gae_lambda,
                             args.entropy_coef, args.value_loss_coef, args.max_grad_norm, args.recurrence,
                             args.optim_alpha, args.optim_eps, preprocess_obss)
@@ -206,7 +224,7 @@ def main():
 
             txt_logger.info(
                 "U {} | F {:06} | FPS {:04.0f} | D {} | rR:μσmM {:.2f} {:.2f} {:.2f} {:.2f} | F:μσmM {:.1f} {:.1f} {} {} | H {:.3f} | V {:.3f} | pL {:.3f} | vL {:.3f} | ∇ {:.3f}"
-                .format(*data).encode('utf8'))
+                .format(*data))
 
             header += ["return_" + key for key in return_per_episode.keys()]
             data += return_per_episode.values()

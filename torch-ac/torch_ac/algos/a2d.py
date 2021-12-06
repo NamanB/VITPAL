@@ -281,8 +281,7 @@ class A2DAlgo(BaseAlgo):
 
         self.optimizer.zero_grad()
         update_loss.backward()
-        # update_grad_norm = sum(p.grad.data.norm(2) ** 2 for p in self.acmodel.parameters()) ** 0.5
-        update_grad_norm = 0
+        update_grad_norm = sum(p.grad.data.norm(2) ** 2 for p in self.acmodel.parameters()) ** 0.5
         torch.nn.utils.clip_grad_norm_(self.acmodel.parameters(), self.max_grad_norm)
         self.optimizer.step()
 
