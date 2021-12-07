@@ -7,6 +7,8 @@ from torch_ac.algos.base import BaseAlgo
 from torch_ac.format import default_preprocess_obss
 from torch_ac.utils import DictList, ParallelEnv
 
+from torch.distributions.categorical import Categorical
+
 class A2DAlgo(BaseAlgo):
     """The Dagger algorithm."""
 
@@ -64,7 +66,9 @@ class A2DAlgo(BaseAlgo):
                 else:
                     dist_learner, value_learner = self.acmodel(preprocessed_obs_ac)
         
-            dist = self.beta * dist + (1 - self.beta) * dist_learner
+
+            dist = Categorical(self.beta * dist.logits + (1 - self.beta) * dist_learner.logits)
+
             value = self.beta * value + (1 - self.beta) * value_learner
             
             if self.expert_model.recurrent:
@@ -236,7 +240,7 @@ class A2DAlgo(BaseAlgo):
             else:
                 dist_learner, value_learner = self.acmodel(sb.obs)
         
-            dist_weighted = self.beta * dist + (1 - self.beta) * dist_learner
+            dist_weighted = Categorical(self.beta * dist.logits + (1 - self.beta) * dist_learner.logits)
             value = self.beta * value + (1 - self.beta) * value_learner
             if self.expert_model.recurrent:
                 memory = self.beta * memory + (1 - self.beta) * memory_learner
@@ -255,7 +259,7 @@ class A2DAlgo(BaseAlgo):
             
             entropy = dist_weighted.entropy().mean()
 
-            policy_loss = -(( dist / dist_weighted) * sb.advantage).mean()
+            policy_loss = -(( dist.logits / dist_weighted.logits) * sb.advantage.unsqueeze(-1)).mean()
             
             value_loss = (value - sb.returnn).pow(2).mean()
 
