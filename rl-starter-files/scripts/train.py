@@ -142,7 +142,7 @@ def main():
         algo = torch_ac.PPOAlgo(envs, acmodel, device, args.frames_per_proc, args.discount, args.lr, args.gae_lambda,
                                 args.entropy_coef, args.value_loss_coef, args.max_grad_norm, args.recurrence,
                                 args.optim_eps, args.clip_eps, args.epochs, args.batch_size, preprocess_obss)
-    elif args.algo == "dagger":
+    elif args.algo == "a2d":
         # Load expert model
 
         import copy
@@ -160,7 +160,7 @@ def main():
         algo = torch_ac.A2DAlgo(envs, acmodel, expert_model, args.beta_cooling, device, args.frames_per_proc, args.discount, args.lr, args.gae_lambda,
                             args.entropy_coef, args.value_loss_coef, args.max_grad_norm, args.recurrence,
                             args.optim_alpha, args.optim_eps, preprocess_obss)
-    elif args.algo == "a2d":
+    elif args.algo == "dagger":
         # Load expert model
 
         import copy
