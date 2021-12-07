@@ -67,12 +67,12 @@ class A2DAlgo(BaseAlgo):
                     dist_learner, value_learner = self.acmodel(preprocessed_obs_ac)
         
 
-            dist = Categorical(self.beta * dist.logits + (1 - self.beta) * dist_learner.logits)
+                dist = Categorical(self.beta * dist.logits + (1 - self.beta) * dist_learner.logits)
 
-            value = self.beta * value + (1 - self.beta) * value_learner
-            
-            if self.expert_model.recurrent:
-                memory = self.beta * memory + (1 - self.beta) * memory_learner
+                value = self.beta * value + (1 - self.beta) * value_learner
+                
+                if self.expert_model.recurrent:
+                    memory = self.beta * memory + (1 - self.beta) * memory_learner
 
             self.update_beta()
             action = dist.sample()
@@ -133,11 +133,17 @@ class A2DAlgo(BaseAlgo):
         # Add advantage and return to experiences
 
         preprocessed_obs = self.preprocess_obss(self.obs, device=self.device)
+        exper_preprocessed_obs = self.preprocess_obss(self.expert_obs, device=self.device)
         with torch.no_grad():
             if self.acmodel.recurrent:
                 _, next_value, _ = self.acmodel(preprocessed_obs, self.memory * self.mask.unsqueeze(1))
+                _, next_expert_value, _ = self.expert_model(preprocessed_obs, self.memory * self.mask.unsqueeze(1))
             else:
                 _, next_value = self.acmodel(preprocessed_obs)
+                _, next_expert_value = self.expert_model(preprocessed_obs)
+            
+            next_value = self.beta * next_expert_value + (1 - self.beta) * next_value
+         
 
         for i in reversed(range(self.num_frames_per_proc)):
             next_mask = self.masks[i+1] if i < self.num_frames_per_proc - 1 else self.mask
@@ -174,7 +180,7 @@ class A2DAlgo(BaseAlgo):
         exps.value = self.values.transpose(0, 1).reshape(-1)
         exps.reward = self.rewards.transpose(0, 1).reshape(-1)
         exps.advantage = self.advantages.transpose(0, 1).reshape(-1)
-        exps.returnn = exps.value
+        exps.returnn = exps.value + exps.advantage
         exps.log_prob = self.log_probs.transpose(0, 1).reshape(-1)
 
         # Preprocess experiences
@@ -231,17 +237,17 @@ class A2DAlgo(BaseAlgo):
 
 
             if self.expert_model.recurrent:
-                dist, value, memory = self.expert_model(sb.expert_obs, self.memory * self.mask.unsqueeze(1))
+                dist_expert, value_expert, memory = self.expert_model(sb.expert_obs, self.memory * self.mask.unsqueeze(1))
             else:
-                dist, value = self.expert_model(sb.expert_obs)
+                dist_expert, value_expert = self.expert_model(sb.expert_obs)
             
             if self.expert_model.recurrent:
                 dist_learner, value_learner, memory_learner = self.acmodel(sb.obs, self.memory * self.mask.unsqueeze(1))
             else:
                 dist_learner, value_learner = self.acmodel(sb.obs)
         
-            dist_weighted = Categorical(self.beta * dist.logits + (1 - self.beta) * dist_learner.logits)
-            value = self.beta * value + (1 - self.beta) * value_learner
+            dist = Categorical(self.beta * dist_expert.logits + (1 - self.beta) * dist_learner.logits)
+            value = self.beta * value_expert + (1 - self.beta) * value_learner
             if self.expert_model.recurrent:
                 memory = self.beta * memory + (1 - self.beta) * memory_learner
 
@@ -257,9 +263,9 @@ class A2DAlgo(BaseAlgo):
             #     # Take the RL step.
             #     trpo_step(inputs, actions, action_log_probs, None, None, None, advantages, fn_pol, A2D_class.params, None)
             
-            entropy = dist_weighted.entropy().mean()
+            entropy = dist.entropy().mean()
 
-            policy_loss = -(( dist.logits / dist_weighted.logits) * sb.advantage.unsqueeze(-1)).mean()
+            policy_loss = -(( dist_expert.logits / dist.logits) * sb.advantage.unsqueeze(-1)).mean()
             
             value_loss = (value - sb.returnn).pow(2).mean()
 
