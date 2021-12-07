@@ -234,28 +234,31 @@ class VitpalTrainWrapper(gym.core.ObservationWrapper):
         obs_shape = env.observation_space.spaces['image'].shape
 
         self.observation_space.spaces['privileged'] = env.observation_space.spaces['image']
-        self.observation_space.spaces['image'] = spaces.Box(
-            low=0,
-            high=255,
-            shape=(obs_shape[0] * tile_size, obs_shape[1] * tile_size, 3),
-            dtype='uint8'
-        )
+        self.observation_space.spaces['image'] = env.observation_space.spaces['image']
+        # spaces.Box(
+        #     low=0,
+        #     high=255,
+        #     shape=(obs_shape[0] * tile_size, obs_shape[1] * tile_size, 3),
+        #     dtype='uint8'
+        # )
         self.lava_render_dist = lava_render_dist
         self.normal_lava_render_dist = normal_lava_render_dist
 
     def observation(self, obs):
         env = self.unwrapped
 
-        rgb_img = env.render(
-            mode='rgb_array',
-            highlight=False,
-            tile_size=self.tile_size,
-            lava_render_dist=self.lava_render_dist
-        )
+        # rgb_img = env.render(
+        #     mode='rgb_array',
+        #     highlight=False,
+        #     tile_size=self.tile_size,
+        #     lava_render_dist=self.lava_render_dist
+        # )
 
         grid, vis_mask = env.gen_obs_grid()
 
         img = grid.encode_privileged(vis_mask=vis_mask, agent_pos=env.agent_pos, lava_render_dist=self.lava_render_dist)
+
+        rgb_img = grid.encode_privileged(vis_mask=vis_mask, agent_pos=env.agent_pos, lava_render_dist=0)
 
         return {
             'image': rgb_img,
