@@ -12,8 +12,8 @@ def make_env(env_key, seed=None, lava_render_dist=-1):
         # env = VitpalRGBImgObsWrapper(env, tile_size=2)
         # env = VitpalExpertImgObsWrapper(env)
         print(lava_render_dist)
-        env = VitpalExpertImgObsWrapper(env, lava_render_dist=lava_render_dist)
+        # env = VitpalExpertImgObsWrapper(env, lava_render_dist=lava_render_dist)
         # env = VitpalExpertImgObsWrapper(env, lava_render_dist=1)
-        # env = VitpalTrainWrapper(env,tile_size=2)
+        env = VitpalTrainWrapper(env,tile_size=2)
     env.seed(seed)
     return env

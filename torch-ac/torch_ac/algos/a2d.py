@@ -44,7 +44,7 @@ class A2DAlgo(BaseAlgo):
 
         assert self.batch_size % self.recurrence == 0
 
-        self.optimizer = torch.optim.Adam(self.acmodel.parameters(), lr, eps=1e-8)
+        self.optimizer = torch.optim.Adam(list(self.acmodel.parameters()) + list(self.expert_model.parameters()), lr, eps=1e-8)
         # self.expert_optimizer = torch.optim.Adam(self.expert_model.parameters(), lr, eps=1e-8)
         self.batch_num = 0
     
@@ -141,14 +141,14 @@ class A2DAlgo(BaseAlgo):
         # Add advantage and return to experiences
 
         preprocessed_obs = self.preprocess_obss(self.obs, device=self.device)
-        exper_preprocessed_obs = self.preprocess_obss(self.expert_obs, device=self.device)
+        expert_preprocessed_obs = self.preprocess_obss(self.expert_obs, device=self.device)
         with torch.no_grad():
             if self.acmodel.recurrent:
                 _, next_value, _ = self.acmodel(preprocessed_obs, self.memory * self.mask.unsqueeze(1))
-                _, next_expert_value, _ = self.expert_model(preprocessed_obs, self.memory * self.mask.unsqueeze(1))
+                _, next_expert_value, _ = self.expert_model(expert_preprocessed_obs, self.memory * self.mask.unsqueeze(1))
             else:
                 _, next_value = self.acmodel(preprocessed_obs)
-                _, next_expert_value = self.expert_model(preprocessed_obs)
+                _, next_expert_value = self.expert_model(expert_preprocessed_obs)
             
             next_value = self.beta * next_expert_value + (1 - self.beta) * next_value
          
