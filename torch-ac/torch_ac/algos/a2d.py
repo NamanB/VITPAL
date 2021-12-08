@@ -7,6 +7,8 @@ from torch_ac.algos.base import BaseAlgo
 from torch_ac.format import default_preprocess_obss
 from torch_ac.utils import DictList, ParallelEnv
 
+from torch.distributions.categorical import Categorical
+
 class A2DAlgo(BaseAlgo):
     """The Dagger algorithm."""
 
@@ -35,8 +37,16 @@ class A2DAlgo(BaseAlgo):
         self.beta = 1
         self.beta_cooling = beta_cooling
 
-        self.optimizer = torch.optim.RMSprop(self.acmodel.parameters(), lr,
-                                             alpha=rmsprop_alpha, eps=rmsprop_eps)
+        #ppo specific
+        self.clip_eps = 0.2
+        self.epochs = 4
+        self.batch_size = 256
+
+        assert self.batch_size % self.recurrence == 0
+
+        self.optimizer = torch.optim.Adam(self.acmodel.parameters(), lr, eps=1e-8)
+        # self.expert_optimizer = torch.optim.Adam(self.expert_model.parameters(), lr, eps=1e-8)
+        self.batch_num = 0
     
     def update_beta(self):
         self.beta *= self.beta_cooling
@@ -64,11 +74,13 @@ class A2DAlgo(BaseAlgo):
                 else:
                     dist_learner, value_learner = self.acmodel(preprocessed_obs_ac)
         
-            dist = self.beta * dist + (1 - self.beta) * dist_learner
-            value = self.beta * value + (1 - self.beta) * value_learner
-            
-            if self.expert_model.recurrent:
-                memory = self.beta * memory + (1 - self.beta) * memory_learner
+
+                dist = Categorical(self.beta * dist.logits + (1 - self.beta) * dist_learner.logits)
+
+                value = self.beta * value + (1 - self.beta) * value_learner
+                
+                if self.expert_model.recurrent:
+                    memory = self.beta * memory + (1 - self.beta) * memory_learner
 
             self.update_beta()
             action = dist.sample()
@@ -129,11 +141,17 @@ class A2DAlgo(BaseAlgo):
         # Add advantage and return to experiences
 
         preprocessed_obs = self.preprocess_obss(self.obs, device=self.device)
+        exper_preprocessed_obs = self.preprocess_obss(self.expert_obs, device=self.device)
         with torch.no_grad():
             if self.acmodel.recurrent:
                 _, next_value, _ = self.acmodel(preprocessed_obs, self.memory * self.mask.unsqueeze(1))
+                _, next_expert_value, _ = self.expert_model(preprocessed_obs, self.memory * self.mask.unsqueeze(1))
             else:
                 _, next_value = self.acmodel(preprocessed_obs)
+                _, next_expert_value = self.expert_model(preprocessed_obs)
+            
+            next_value = self.beta * next_expert_value + (1 - self.beta) * next_value
+         
 
         for i in reversed(range(self.num_frames_per_proc)):
             next_mask = self.masks[i+1] if i < self.num_frames_per_proc - 1 else self.mask
@@ -170,7 +188,7 @@ class A2DAlgo(BaseAlgo):
         exps.value = self.values.transpose(0, 1).reshape(-1)
         exps.reward = self.rewards.transpose(0, 1).reshape(-1)
         exps.advantage = self.advantages.transpose(0, 1).reshape(-1)
-        exps.returnn = exps.value
+        exps.returnn = exps.value + exps.advantage
         exps.log_prob = self.log_probs.transpose(0, 1).reshape(-1)
 
         # Preprocess experiences
@@ -201,118 +219,142 @@ class A2DAlgo(BaseAlgo):
 
         # Perform BC Update
 
-        # Compute starting indexes
+        for _ in range(self.epochs):
+            # Initialize log values
 
-        inds = self._get_starting_indexes()
+            log_entropies = []
+            log_values = []
+            log_policy_losses = []
+            log_value_losses = []
+            log_grad_norms = []
 
-        # Initialize update values
+            for inds in self._get_batches_starting_indexes():
+                # Initialize batch values
 
-        update_entropy = 0
-        update_value = 0
-        update_policy_loss = 0
-        update_value_loss = 0
-        update_loss = 0
+                batch_entropy = 0
+                batch_value = 0
+                batch_policy_loss = 0
+                batch_value_loss = 0
+                batch_loss = 0
 
-        # Initialize memory
+                # Initialize memory
 
-        if self.acmodel.recurrent:
-            memory = exps.memory[inds]
+                if self.acmodel.recurrent:
+                    memory = exps.memory[inds]
 
-        for i in range(self.recurrence):
-            # Create a sub-batch of experience
+                for i in range(self.recurrence):
+                    # Create a sub-batch of experience
 
-            sb = exps[inds + i]
+                    sb = exps[inds + i]
 
-            # Compute loss
-
-
-            if self.expert_model.recurrent:
-                dist, value, memory = self.expert_model(sb.expert_obs, self.memory * self.mask.unsqueeze(1))
-            else:
-                dist, value = self.expert_model(sb.expert_obs)
-            
-            if self.expert_model.recurrent:
-                dist_learner, value_learner, memory_learner = self.acmodel(sb.obs, self.memory * self.mask.unsqueeze(1))
-            else:
-                dist_learner, value_learner = self.acmodel(sb.obs)
-        
-            dist_weighted = self.beta * dist + (1 - self.beta) * dist_learner
-            value = self.beta * value + (1 - self.beta) * value_learner
-            if self.expert_model.recurrent:
-                memory = self.beta * memory + (1 - self.beta) * memory_learner
+                    # Compute loss
 
 
-            #A2D
-             # Take value function steps.
-            # value_loss = value_step(self, inputs, returns, advantages, not_dones, fn_val, fn_val_opt)
+                    if self.expert_model.recurrent:
+                        dist_expert, value_expert, memory = self.expert_model(sb.expert_obs, self.memory * self.mask.unsqueeze(1))
+                    else:
+                        dist_expert, value_expert = self.expert_model(sb.expert_obs)
+                    
+                    if self.expert_model.recurrent:
+                        dist_learner, value_learner, memory_learner = self.acmodel(sb.obs, self.memory * self.mask.unsqueeze(1))
+                    else:
+                        dist_learner, value_learner = self.acmodel(sb.obs)
 
-            # # Take policy steps.  Replaced unused args with None.
-            # if policy_step:
-            #         # Do the importance weight.
-            #         # advantages *= importance_weight(A2D_class, policy_tag, states, obs, actions)
-            #     # Take the RL step.
-            #     trpo_step(inputs, actions, action_log_probs, None, None, None, advantages, fn_pol, A2D_class.params, None)
-            
-            entropy = dist_weighted.entropy().mean()
+                    dist = Categorical(self.beta * dist_expert.logits + (1 - self.beta) * dist_learner.logits)
+                    value = self.beta * value_expert + (1 - self.beta) * value_learner
+                    if self.expert_model.recurrent:
+                        memory = self.beta * memory + (1 - self.beta) * memory_learner
 
-            policy_loss = -(( dist / dist_weighted) * sb.advantage).mean()
-            
-            value_loss = (value - sb.returnn).pow(2).mean()
+                    entropy = dist_learner.entropy().mean()
 
-            loss = policy_loss - self.entropy_coef * entropy + self.value_loss_coef * value_loss
+                    ratio = torch.exp(dist_expert.log_prob(sb.action) - dist.log_prob(sb.action))
+                    surr1 = ratio * sb.advantage
+                    surr2 = torch.clamp(ratio, 1.0 - self.clip_eps, 1.0 + self.clip_eps) * sb.advantage
+                    policy_loss = -torch.min(surr1, surr2).mean()
 
-            # Update batch values
+                    value_clipped = sb.value + torch.clamp(value - sb.value, -self.clip_eps, self.clip_eps)
+                    surr1 = (value - sb.returnn).pow(2)
+                    surr2 = (value_clipped - sb.returnn).pow(2)
+                    value_loss = torch.max(surr1, surr2).mean()
 
-            update_entropy += entropy.item()
-            update_value += value.mean().item()
-            update_policy_loss += policy_loss.item()
-            update_value_loss += value_loss.item()
-            update_loss += loss
+                    loss = policy_loss - self.entropy_coef * entropy + self.value_loss_coef * value_loss
 
-        # Update update values
+                    # Update batch values
 
-        update_entropy /= self.recurrence
-        update_value /= self.recurrence
-        update_policy_loss /= self.recurrence
-        update_value_loss /= self.recurrence
-        update_loss /= self.recurrence
+                    batch_entropy += entropy.item()
+                    batch_value += value.mean().item()
+                    batch_policy_loss += policy_loss.item()
+                    batch_value_loss += value_loss.item()
+                    batch_loss += loss
 
-        # Update actor-critic
+                    # Update memories for next epoch
 
-        self.optimizer.zero_grad()
-        update_loss.backward()
-        update_grad_norm = sum(p.grad.data.norm(2) ** 2 for p in self.acmodel.parameters()) ** 0.5
-        torch.nn.utils.clip_grad_norm_(self.acmodel.parameters(), self.max_grad_norm)
-        self.optimizer.step()
+                    if self.acmodel.recurrent and i < self.recurrence - 1:
+                        exps.memory[inds + i + 1] = memory.detach()
 
+
+                # Update batch values
+
+                batch_entropy /= self.recurrence
+                batch_value /= self.recurrence
+                batch_policy_loss /= self.recurrence
+                batch_value_loss /= self.recurrence
+                batch_loss /= self.recurrence
+
+                # Update actor-critic
+
+                self.optimizer.zero_grad()
+                batch_loss.backward()
+                grad_norm = sum(p.grad.data.norm(2) ** 2 for p in self.acmodel.parameters()) ** 0.5
+                torch.nn.utils.clip_grad_norm_(self.acmodel.parameters(), self.max_grad_norm)
+                self.optimizer.step()
+
+                # Update log values
+
+                log_entropies.append(batch_entropy)
+                log_values.append(batch_value)
+                log_policy_losses.append(batch_policy_loss)
+                log_value_losses.append(batch_value_loss)
+                log_grad_norms.append(grad_norm)
         # Log some values
 
         logs = {
-            "entropy": update_entropy,
-            "value": update_value,
-            "policy_loss": update_policy_loss,
-            "value_loss": update_value_loss,
-            "grad_norm": update_grad_norm
+            "entropy": numpy.mean(log_entropies),
+            "value": numpy.mean(log_values),
+            "policy_loss": numpy.mean(log_policy_losses),
+            "value_loss": numpy.mean(log_value_losses),
+            "grad_norm": numpy.mean(log_grad_norms)
         }
 
         return logs
 
-    def _get_starting_indexes(self):
-        """Gives the indexes of the observations given to the model and the
-        experiences used to compute the loss at first.
+    def _get_batches_starting_indexes(self):
+        """Gives, for each batch, the indexes of the observations given to
+        the model and the experiences used to compute the loss at first.
 
-        The indexes are the integers from 0 to `self.num_frames` with a step of
-        `self.recurrence`. If the model is not recurrent, they are all the
-        integers from 0 to `self.num_frames`.
+        First, the indexes are the integers from 0 to `self.num_frames` with a step of
+        `self.recurrence`, shifted by `self.recurrence//2` one time in two for having
+        more diverse batches. Then, the indexes are splited into the different batches.
 
         Returns
         -------
-        starting_indexes : list of int
-            the indexes of the experiences to be used at first
+        batches_starting_indexes : list of list of int
+            the indexes of the experiences to be used at first for each batch
         """
 
-        starting_indexes = numpy.arange(0, self.num_frames, self.recurrence)
-        return starting_indexes
+        indexes = numpy.arange(0, self.num_frames, self.recurrence)
+        indexes = numpy.random.permutation(indexes)
+
+        # Shift starting indexes by self.recurrence//2 half the time
+        if self.batch_num % 2 == 1:
+            indexes = indexes[(indexes + self.recurrence) % self.num_frames_per_proc != 0]
+            indexes += self.recurrence // 2
+        self.batch_num += 1
+
+        num_indexes = self.batch_size // self.recurrence
+        batches_starting_indexes = [indexes[i:i+num_indexes] for i in range(0, len(indexes), num_indexes)]
+
+        return batches_starting_indexes
 
 
 def kl_loss(learner_log_dist, expert_log_dist):
