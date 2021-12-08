@@ -12,7 +12,7 @@ from torch.distributions.categorical import Categorical
 class A2DAlgo(BaseAlgo):
     """The Dagger algorithm."""
 
-    def __init__(self, envs, acmodel, expert_model, beta_cooling=0.999999, device=None, num_frames_per_proc=None, discount=0.99, lr=0.01, gae_lambda=0.95,
+    def __init__(self, envs, acmodel, expert_model, beta_cooling=0.999, device=None, num_frames_per_proc=None, discount=0.99, lr=0.01, gae_lambda=0.95,
                  entropy_coef=0.01, value_loss_coef=0.5, max_grad_norm=0.5, recurrence=4,
                  rmsprop_alpha=0.99, rmsprop_eps=1e-8, preprocess_obss=None, reshape_reward=None):
         num_frames_per_proc = num_frames_per_proc or 8
@@ -60,8 +60,9 @@ class A2DAlgo(BaseAlgo):
                 import random
                 e = random.uniform(0, 1)
 
+                self.e = e
+
                 # Expert query at random
-                
                 preprocessed_obs = self.preprocess_obss(self.expert_obs, device=self.device)
                 if self.expert_model.recurrent:
                     dist, value, memory = self.expert_model(preprocessed_obs, self.memory * self.mask.unsqueeze(1))
@@ -74,8 +75,10 @@ class A2DAlgo(BaseAlgo):
                 else:
                     dist_learner, value_learner = self.acmodel(preprocessed_obs_ac)
         
-
-                dist = Categorical(self.beta * dist.logits + (1 - self.beta) * dist_learner.logits)
+                # Expert query at random
+                if e > self.beta:
+                    dist = dist_learner
+                    # dist = Categorical(self.beta * dist.logits + (1 - self.beta) * dist_learner.logits)
 
                 value = self.beta * value + (1 - self.beta) * value_learner
                 
@@ -214,8 +217,90 @@ class A2DAlgo(BaseAlgo):
         self.log_num_frames = self.log_num_frames[-self.num_procs:]
 
         return exps, logs
-        
+
     def update_parameters(self, exps):
+        logs1 = self.update_expert_parameters(exps)
+        logs2 = self.update_trainee_parameters(exps)
+
+        return logs1
+
+    def update_trainee_parameters(self, exps):
+
+        # Perform BC Update
+
+        # Compute starting indexes
+
+        inds = self._get_starting_indexes()
+
+        # Initialize update values
+
+        update_entropy = 0
+        update_value = 0
+        update_policy_loss = 0
+        update_value_loss = 0
+        update_loss = 0
+
+        # Initialize memory
+
+        if self.acmodel.recurrent:
+            memory = exps.memory[inds]
+
+        for i in range(self.recurrence):
+            # Create a sub-batch of experience
+
+            sb = exps[inds + i]
+
+            # Compute loss
+
+            if self.acmodel.recurrent:
+                dist, _, memory = self.acmodel(sb.obs, memory * sb.mask)
+            else:
+                dist, _ = self.acmodel(sb.obs)
+
+            entropy = dist.entropy().mean()
+
+            policy_loss = -(dist.log_prob(sb.action)).mean()
+
+            loss = policy_loss - self.entropy_coef * entropy
+
+            # Update batch values
+
+            update_entropy += entropy.item()
+            update_value += 0
+            update_policy_loss += policy_loss.item()
+            update_value_loss += 0
+            update_loss += loss
+
+        # Update update values
+
+        update_entropy /= self.recurrence
+        update_value /= self.recurrence
+        update_policy_loss /= self.recurrence
+        update_value_loss /= self.recurrence
+        update_loss /= self.recurrence
+
+        # Update actor-critic
+
+        self.optimizer.zero_grad()
+        update_loss.backward()
+        # update_grad_norm = sum(p.grad.data.norm(2) ** 2 for p in self.acmodel.parameters()) ** 0.5
+        update_grad_norm = 0
+        torch.nn.utils.clip_grad_norm_(self.acmodel.parameters(), self.max_grad_norm)
+        self.optimizer.step()
+
+        # Log some values
+
+        logs = {
+            "entropy": update_entropy,
+            "value": update_value,
+            "policy_loss": update_policy_loss,
+            "value_loss": update_value_loss,
+            "grad_norm": update_grad_norm
+        }
+
+        return logs
+        
+    def update_expert_parameters(self, exps):
 
         # Perform BC Update
 
@@ -260,12 +345,16 @@ class A2DAlgo(BaseAlgo):
                     else:
                         dist_learner, value_learner = self.acmodel(sb.obs)
 
-                    dist = Categorical(self.beta * dist_expert.logits + (1 - self.beta) * dist_learner.logits)
+                    if self.e < self.beta:
+                        dist = dist_expert
+                    else:
+                        dist = dist_learner
+                    # dist = Categorical(self.beta * dist_expert.logits + (1 - self.beta) * dist_learner.logits)
                     value = self.beta * value_expert + (1 - self.beta) * value_learner
                     if self.expert_model.recurrent:
                         memory = self.beta * memory + (1 - self.beta) * memory_learner
 
-                    entropy = dist_learner.entropy().mean()
+                    entropy = dist.entropy().mean()
 
                     ratio = torch.exp(dist_expert.log_prob(sb.action) - dist.log_prob(sb.action))
                     surr1 = ratio * sb.advantage
@@ -305,8 +394,8 @@ class A2DAlgo(BaseAlgo):
 
                 self.optimizer.zero_grad()
                 batch_loss.backward()
-                grad_norm = sum(p.grad.data.norm(2) ** 2 for p in self.acmodel.parameters()) ** 0.5
-                torch.nn.utils.clip_grad_norm_(self.acmodel.parameters(), self.max_grad_norm)
+                grad_norm = sum(p.grad.data.norm(2) ** 2 for p in self.expert_model.parameters()) ** 0.5
+                torch.nn.utils.clip_grad_norm_(self.expert_model.parameters(), self.max_grad_norm)
                 self.optimizer.step()
 
                 # Update log values
@@ -327,6 +416,23 @@ class A2DAlgo(BaseAlgo):
         }
 
         return logs
+
+    def _get_starting_indexes(self):
+        """Gives the indexes of the observations given to the model and the
+        experiences used to compute the loss at first.
+
+        The indexes are the integers from 0 to `self.num_frames` with a step of
+        `self.recurrence`. If the model is not recurrent, they are all the
+        integers from 0 to `self.num_frames`.
+
+        Returns
+        -------
+        starting_indexes : list of int
+            the indexes of the experiences to be used at first
+        """
+
+        starting_indexes = numpy.arange(0, self.num_frames, self.recurrence)
+        return starting_indexes
 
     def _get_batches_starting_indexes(self):
         """Gives, for each batch, the indexes of the observations given to

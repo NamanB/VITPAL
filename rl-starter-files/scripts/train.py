@@ -67,7 +67,7 @@ def main():
 
     parser.add_argument("--expert-model", default=None,
                         help="name of the expert model")
-    parser.add_argument("--beta-cooling", type=float, default=0.999999,
+    parser.add_argument("--beta-cooling", type=float, default=0.99,
                         help= "beta cooling for dagger algorithm")
 
     args = parser.parse_args()
@@ -248,6 +248,12 @@ def main():
                 status["vocab"] = preprocess_obss.vocab.vocab
             utils.save_status(status, model_dir)
             txt_logger.info("Status saved")
+
+            # Save expert model too
+            if args.algo == "a2d":
+                status = {"num_frames": num_frames, "update": update,
+                        "model_state": expert_model.state_dict(), "optimizer_state": algo.optimizer.state_dict()}
+                utils.save_status(status, expert_model_dir)
 
 if __name__ == "__main__":
     main()
