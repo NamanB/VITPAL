@@ -32,6 +32,8 @@ def main():
                         help="number of processes (default: 16)")
     parser.add_argument("--frames", type=int, default=10**7,
                         help="number of frames of training (default: 1e7)")
+    parser.add_argument("--lava-render-dist", type=int, default=-1,
+                        help="render distance where lava show up in agent view")
 
     ## Parameters for main algorithm
     parser.add_argument("--epochs", type=int, default=4,
@@ -103,7 +105,7 @@ def main():
 
     envs = []
     for i in range(args.procs):
-        envs.append(utils.make_env(args.env, args.seed + 10000 * i))
+        envs.append(utils.make_env(args.env, args.seed + 10000 * i, args.lava_render_dist))
     txt_logger.info("Environments loaded\n")
 
     # Load training status
