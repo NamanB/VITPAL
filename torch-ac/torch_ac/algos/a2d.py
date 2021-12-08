@@ -357,8 +357,9 @@ class A2DAlgo(BaseAlgo):
                     entropy = dist.entropy().mean()
 
                     ratio = torch.exp(dist_expert.log_prob(sb.action) - dist.log_prob(sb.action))
-                    surr1 = ratio * sb.advantage
-                    surr2 = torch.clamp(ratio, 1.0 - self.clip_eps, 1.0 + self.clip_eps) * sb.advantage
+                    kl_scalar =  kl_loss(dist_expert.logits, dist.logits).item()
+                    surr1 = ratio * sb.advantage * kl_scalar
+                    surr2 = torch.clamp(ratio, 1.0 - self.clip_eps, 1.0 + self.clip_eps) * sb.advantage * kl_scalar
                     policy_loss = -torch.min(surr1, surr2).mean()
 
                     value_clipped = sb.value + torch.clamp(value - sb.value, -self.clip_eps, self.clip_eps)
